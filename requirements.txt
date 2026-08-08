@@ -1,0 +1,4 @@
+# No external dependencies.
+# This project uses only the Python standard library
+# (socket, struct, json, hashlib, unittest) by design —
+# sockets and the three ciphers are implemented from scratch.
