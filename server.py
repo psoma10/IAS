@@ -9,7 +9,7 @@ the same algorithm/params, and send it back as a RESPONSE.
 
 import socket
 
-from algorithms import caesar
+from algorithms import caesar, playfair
 from network.protocol import recv_message, send_message
 
 HOST = "127.0.0.1"
@@ -37,8 +37,16 @@ def encrypt_caesar(params: dict, plaintext: str) -> str:
     return caesar.encrypt(plaintext, params["shift"])
 
 
-DECRYPTORS = {"caesar": decrypt_caesar}
-ENCRYPTORS = {"caesar": encrypt_caesar}
+def decrypt_playfair(params: dict, ciphertext: str) -> str:
+    return playfair.decrypt(ciphertext, params["key"])
+
+
+def encrypt_playfair(params: dict, plaintext: str) -> str:
+    return playfair.encrypt(plaintext, params["key"])
+
+
+DECRYPTORS = {"caesar": decrypt_caesar, "playfair": decrypt_playfair}
+ENCRYPTORS = {"caesar": encrypt_caesar, "playfair": encrypt_playfair}
 
 
 def handle_request(conn: socket.socket) -> None:

@@ -9,7 +9,7 @@ network/protocol.py.
 
 import socket
 
-from algorithms import caesar
+from algorithms import caesar, playfair
 from network.protocol import recv_message, send_message
 
 HOST = "127.0.0.1"
@@ -81,13 +81,47 @@ def run_caesar(sock: socket.socket) -> None:
     print(f"Plaintext : {server_plaintext}")
 
 
+def run_playfair(sock: socket.socket) -> None:
+    print("\n" + "-" * 40)
+    print("PLAYFAIR CIPHER")
+    print("-" * 40 + "\n")
+
+    key = read_nonempty("Enter key: ")
+    plaintext = read_nonempty("Enter plaintext: ")
+    ciphertext = playfair.encrypt(plaintext, key)
+
+    print(f"\nPlaintext : {plaintext}")
+    print(f"Ciphertext: {ciphertext}")
+
+    print("\nSending to server...")
+    send_message(
+        sock,
+        {"type": "REQUEST", "algorithm": "playfair", "params": {"key": key}},
+        ciphertext.encode("utf-8"),
+    )
+
+    header, payload = recv_message(sock)
+    if header.get("type") != "RESPONSE":
+        print("Unexpected response from server.")
+        return
+
+    server_ciphertext = payload.decode("utf-8")
+    server_plaintext = playfair.decrypt(server_ciphertext, key)
+
+    print("\n" + "-" * 40)
+    print("SERVER -> CLIENT")
+    print("-" * 40)
+    print(f"Ciphertext: {server_ciphertext}")
+    print(f"Plaintext : {server_plaintext}")
+
+
 def not_implemented(_sock: socket.socket) -> None:
     print("\nThis algorithm is not implemented yet. Coming in a later phase.")
 
 
 HANDLERS = {
     "1": run_caesar,
-    "2": not_implemented,
+    "2": run_playfair,
     "3": not_implemented,
     "4": not_implemented,
 }
