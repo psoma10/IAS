@@ -7,13 +7,17 @@ display it, then let the server operator type a reply, encrypt it with
 the same algorithm/params, and send it back as a RESPONSE.
 """
 
+import os
 import socket
+import sys
 
 from algorithms import caesar, playfair, sdes
+from fileutils import preview_hex, sha256_hex
 from network.protocol import recv_message, send_message
 
 HOST = "127.0.0.1"
 PORT = 5000
+RECEIVED_FILE_DIR = os.path.join(os.path.dirname(__file__), "received", "server")
 
 
 def print_banner() -> None:
@@ -67,12 +71,18 @@ ENCRYPTORS = {
 }
 
 
-def handle_request(conn: socket.socket) -> None:
+def handle_connection(conn: socket.socket) -> None:
     header, payload = recv_message(conn)
-    if header.get("type") != "REQUEST":
-        print("\nUnexpected message type from client, ignoring.")
-        return
+    msg_type = header.get("type")
+    if msg_type == "REQUEST":
+        handle_message_request(conn, header, payload)
+    elif msg_type == "FILE_TRANSFER":
+        handle_file_transfer(conn, header, payload)
+    else:
+        print(f"\nUnexpected message type {msg_type!r} from client, ignoring.")
 
+
+def handle_message_request(conn: socket.socket, header: dict, payload: bytes) -> None:
     algorithm = header.get("algorithm")
     params = header.get("params", {})
     ciphertext = payload.decode("utf-8")
@@ -106,7 +116,46 @@ def handle_request(conn: socket.socket) -> None:
     print("\nMessage sent successfully.")
 
 
+def handle_file_transfer(conn: socket.socket, header: dict, payload: bytes) -> None:
+    print("\n" + "-" * 40)
+    print("SDES FILE TRANSFER (1 MB Client -> Server)")
+    print("-" * 40)
+
+    filename = header["filename"]
+    key10 = header["key10"]
+    expected_hash = header["sha256"]
+    ciphertext_data = payload
+
+    print(f"\nReceived {len(ciphertext_data)} bytes for {filename!r}")
+    print(f"Ciphertext preview: {preview_hex(ciphertext_data)}")
+
+    k1, k2 = sdes.generate_keys(key10)
+    plaintext_data = sdes.decrypt_bytes(ciphertext_data, k1, k2)
+    print(f"Plaintext preview : {preview_hex(plaintext_data)}")
+
+    os.makedirs(RECEIVED_FILE_DIR, exist_ok=True)
+    out_path = os.path.join(RECEIVED_FILE_DIR, filename)
+    with open(out_path, "wb") as f:
+        f.write(plaintext_data)
+
+    actual_hash = sha256_hex(plaintext_data)
+    verified = actual_hash == expected_hash
+
+    print(f"\nSaved decrypted file to: {out_path}")
+    print("\n✓ File transfer successful" if verified else "\n✗ File transfer FAILED")
+    print("✓ Decryption successful" if verified else "✗ Decryption mismatch")
+    print(
+        "✓ Original and decrypted files match"
+        if verified
+        else "✗ Original and decrypted files DO NOT match"
+    )
+    print(f"SHA-256: {actual_hash}")
+
+    send_message(conn, {"type": "FILE_ACK", "verified": verified}, b"")
+
+
 def main() -> None:
+    sys.stdout.reconfigure(line_buffering=True)
     print_banner()
     print(f"\nServer started on {HOST}:{PORT}")
 
@@ -122,7 +171,7 @@ def main() -> None:
                 with conn:
                     print(f"\nClient connected: {addr[0]}:{addr[1]}")
                     try:
-                        handle_request(conn)
+                        handle_connection(conn)
                     except ConnectionError as exc:
                         print(f"\nConnection error: {exc}")
         except KeyboardInterrupt:
