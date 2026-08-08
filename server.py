@@ -18,6 +18,8 @@ from network.protocol import recv_message, send_message
 HOST = "127.0.0.1"
 PORT = 5000
 RECEIVED_FILE_DIR = os.path.join(os.path.dirname(__file__), "received", "server")
+SERVER_FILE_DIR = os.path.join(os.path.dirname(__file__), "files", "server")
+SAMPLE_10KB_FILE = os.path.join(SERVER_FILE_DIR, "sample_10kb.bin")
 
 
 def print_banner() -> None:
@@ -151,7 +153,32 @@ def handle_file_transfer(conn: socket.socket, header: dict, payload: bytes) -> N
     )
     print(f"SHA-256: {actual_hash}")
 
-    send_message(conn, {"type": "FILE_ACK", "verified": verified}, b"")
+    print("\n" + "-" * 40)
+    print("SDES FILE TRANSFER (10 KB Server -> Client)")
+    print("-" * 40)
+
+    with open(SAMPLE_10KB_FILE, "rb") as f:
+        reply_plaintext_data = f.read()
+    print(f"\nRead {len(reply_plaintext_data)} bytes from {SAMPLE_10KB_FILE}")
+    print(f"Plaintext preview : {preview_hex(reply_plaintext_data)}")
+
+    reply_ciphertext_data = sdes.encrypt_bytes(reply_plaintext_data, k1, k2)
+    print(f"Ciphertext preview: {preview_hex(reply_ciphertext_data)}")
+
+    reply_hash = sha256_hex(reply_plaintext_data)
+    print(f"\nSending encrypted file to client... SHA-256: {reply_hash}")
+
+    send_message(
+        conn,
+        {
+            "type": "FILE_ACK",
+            "verified": verified,
+            "filename": os.path.basename(SAMPLE_10KB_FILE),
+            "sha256": reply_hash,
+        },
+        reply_ciphertext_data,
+    )
+    print("File sent successfully.")
 
 
 def main() -> None:

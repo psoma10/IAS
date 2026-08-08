@@ -201,10 +201,45 @@ def run_sdes_file_transfer(sock: socket.socket) -> None:
         ciphertext_data,
     )
 
-    header, _payload = recv_message(sock)
-    if header.get("type") == "FILE_ACK":
-        status = "matched" if header.get("verified") else "DID NOT MATCH"
-        print(f"\nServer report: decrypted file {status} the original (SHA-256).")
+    header, ack_payload = recv_message(sock)
+    if header.get("type") != "FILE_ACK":
+        return
+
+    status = "matched" if header.get("verified") else "DID NOT MATCH"
+    print(f"\nServer report: decrypted file {status} the original (SHA-256).")
+
+    if not ack_payload:
+        return
+
+    print("\n" + "-" * 40)
+    print("SDES FILE TRANSFER (10 KB Server -> Client)")
+    print("-" * 40)
+
+    filename = header["filename"]
+    expected_hash = header["sha256"]
+    print(f"\nReceived {len(ack_payload)} bytes for {filename!r}")
+    print(f"Ciphertext preview: {preview_hex(ack_payload)}")
+
+    reply_plaintext_data = sdes.decrypt_bytes(ack_payload, k1, k2)
+    print(f"Plaintext preview : {preview_hex(reply_plaintext_data)}")
+
+    os.makedirs(RECEIVED_FILE_DIR, exist_ok=True)
+    out_path = os.path.join(RECEIVED_FILE_DIR, filename)
+    with open(out_path, "wb") as f:
+        f.write(reply_plaintext_data)
+
+    actual_hash = sha256_hex(reply_plaintext_data)
+    verified = actual_hash == expected_hash
+
+    print(f"\nSaved decrypted file to: {out_path}")
+    print("\n✓ File transfer successful" if verified else "\n✗ File transfer FAILED")
+    print("✓ Decryption successful" if verified else "✗ Decryption mismatch")
+    print(
+        "✓ Original and decrypted files match"
+        if verified
+        else "✗ Original and decrypted files DO NOT match"
+    )
+    print(f"SHA-256: {actual_hash}")
 
 
 def not_implemented(_sock: socket.socket) -> None:
