@@ -9,7 +9,7 @@ network/protocol.py.
 
 import socket
 
-from algorithms import caesar, playfair
+from algorithms import caesar, playfair, sdes
 from network.protocol import recv_message, send_message
 
 HOST = "127.0.0.1"
@@ -115,6 +115,49 @@ def run_playfair(sock: socket.socket) -> None:
     print(f"Plaintext : {server_plaintext}")
 
 
+def read_bits(prompt: str, length: int) -> str:
+    while True:
+        raw = input(prompt).strip()
+        if len(raw) == length and set(raw) <= {"0", "1"}:
+            return raw
+        print(f"Please enter exactly {length} bits (only 0s and 1s).")
+
+
+def run_sdes(sock: socket.socket) -> None:
+    print("\n" + "-" * 40)
+    print("SDES")
+    print("-" * 40 + "\n")
+
+    key10 = read_bits("Enter 10-bit key: ", 10)
+    plaintext = read_bits("Enter 8-bit plaintext: ", 8)
+    k1, k2 = sdes.generate_keys(key10)
+    ciphertext = sdes.encrypt_block(plaintext, k1, k2)
+
+    print(f"\nPlaintext : {plaintext}")
+    print(f"Ciphertext: {ciphertext}")
+
+    print("\nSending to server...")
+    send_message(
+        sock,
+        {"type": "REQUEST", "algorithm": "sdes", "params": {"key10": key10}},
+        ciphertext.encode("utf-8"),
+    )
+
+    header, payload = recv_message(sock)
+    if header.get("type") != "RESPONSE":
+        print("Unexpected response from server.")
+        return
+
+    server_ciphertext = payload.decode("utf-8")
+    server_plaintext = sdes.decrypt_block(server_ciphertext, k1, k2)
+
+    print("\n" + "-" * 40)
+    print("SERVER -> CLIENT")
+    print("-" * 40)
+    print(f"Ciphertext: {server_ciphertext}")
+    print(f"Plaintext : {server_plaintext}")
+
+
 def not_implemented(_sock: socket.socket) -> None:
     print("\nThis algorithm is not implemented yet. Coming in a later phase.")
 
@@ -122,7 +165,7 @@ def not_implemented(_sock: socket.socket) -> None:
 HANDLERS = {
     "1": run_caesar,
     "2": run_playfair,
-    "3": not_implemented,
+    "3": run_sdes,
     "4": not_implemented,
 }
 
