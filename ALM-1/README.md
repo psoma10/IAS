@@ -1,5 +1,9 @@
 # ALM-1 Cryptography Client-Server Lab
 
+**Name:** Pujith Krishna Soma
+**Roll No:** 2420090069
+**Section:** 11
+
 ## 1. Project Title
 
 Cryptography Client-Server Lab — Caesar, Playfair and Simplified DES (SDES) over TCP sockets.
